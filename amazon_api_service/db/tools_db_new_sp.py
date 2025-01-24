@@ -305,7 +305,7 @@ class DbNewSpTools(BaseDb):
 
     async def add_sd_adGroup_Targeting(self, market,adGroupId,bid,expression_type,state,expression,targetingType,targetingState, update_time,targetId,user='test',campaignId = None):
         try:
-            query = "INSERT INTO amazon_targeting_create (market,adGroupId,bid,expressionType,state,expression,targetingType,targetingState,update_time,user,targetId,campaignId) VALUES (%s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            query = "INSERT INTO amazon_targeting_create (market,adGroupId,bid,expressionType,state,expression,targetingType,targetingState,update_time,user,targetId,campaignId) VALUES (%s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             values = (market,adGroupId,bid,expression_type,state,expression,targetingType,targetingState, update_time,user,targetId,campaignId)
             async with self.conn.cursor() as cursor:
                 await cursor.execute(query, values)
