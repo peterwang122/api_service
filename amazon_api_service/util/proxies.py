@@ -23,11 +23,11 @@ class ProxyManager:
             {},  # 无代理
             {  # 代理1
                 "http": "http://192.168.2.165:7890",
-                "https": "https://daili.deepbi.com"
+                "https": "http://192.168.2.165:7890"
             },
             {  # 代理2
                 "http": "http://192.168.2.165:7890",
-                "https": "https://daili3.deepbi.com"
+                "https": "http://192.168.2.165:7890"
             }
         ]
         self.toggle = 0  # 初始时设置为无代理
