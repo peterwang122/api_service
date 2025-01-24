@@ -4,7 +4,6 @@ from datetime import datetime
 import aiomysql
 import pandas as pd
 import pymysql
-from configuration.path import get_config_path
 from db.base.db_api import BaseDb
 
 

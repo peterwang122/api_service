@@ -17,7 +17,6 @@ from util.automatic_configuration import automatic_configuration
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from configuration.path import get_config_path
 from pydantic import BaseModel
 
 app = FastAPI()

@@ -8,7 +8,6 @@ import yaml
 from datetime import datetime, timedelta
 from db.tools_db_sp import DbSpTools
 from util.InserOnlineData import ProcessShowData
-from configuration.path import get_config_path
 from util.automatic_configuration import automatic_configuration,update_configuration
 from logs.logger import logger
 import redis
@@ -48,69 +47,6 @@ def select_market(market, brand):
     return brand_credentials
 
 
-# def select_brand(brand, country=None):
-#     # 从 JSON 文件加载数据库信息
-#     Brand_path = os.base.join(get_config_path(), 'Brand.yml')
-#     with open(Brand_path, 'r') as file:
-#         Brand_data = yaml.safe_load(file)
-#
-#     brand_info = Brand_data.get(brand, {})
-#     if country and country in brand_info:
-#         return brand_info[country]
-#     return brand_info.get('default', {})
-
-
-# def select_brand(db, sub_brand=None, country=None, retries=3):
-#     try:
-#         # 从 YAML 文件加载数据库信息
-#         Brand_path = os.path.join(get_config_path(), 'Brand.yml')
-#         with open(Brand_path, 'r') as file:
-#             Brand_data = yaml.safe_load(file)
-#
-#         # 获取品牌信息
-#         brand_info = Brand_data.get(db, {})
-#         print("brand_info:", brand_info)
-#
-#         # 如果指定了子品牌，则进一步获取该子品牌的信息
-#         if sub_brand:
-#             sub_brand_info = brand_info.get(sub_brand, {})
-#             if country and country in sub_brand_info:
-#                 result = sub_brand_info[country]
-#             else:
-#                 result = sub_brand_info.get('default', {})
-#         else:
-#             # 处理没有子品牌的情况
-#             if country and country in brand_info:
-#                 result = brand_info[country]
-#             else:
-#                 result = brand_info.get('default', {})
-#
-#         # 检查返回值是否为空
-#         if not result:  # 如果 result 是 {} 或 None
-#             if retries > 0:
-#                 logger.info(f"Return value is empty. Retrying... ({retries} retries left)")
-#                 time.sleep(3)
-#                 # 调用自动配置方法
-#                 update_configuration(db)
-#                 # 重新执行 select_brand 方法，重试次数减一
-#                 return select_brand(db, sub_brand, country, retries - 1)
-#             else:
-#                 logger.info("Max retries reached. Returning default.")
-#                 return None
-#         else:
-#             return result  # 返回有效的结果
-#
-#     except Exception as e:
-#         logger.info(f"Error occurred: {e}")
-#         if retries > 0:
-#             time.sleep(3)
-#             # 调用自动配置方法
-#             update_configuration(db)
-#             # 重新执行 select_brand 方法，重试次数减一
-#             return select_brand(db, sub_brand, country, retries - 1)
-#         else:
-#             logger.info("Max retries reached. Returning default.")
-#             return None
 
 def new_get_api_config(uid, region, api_type, is_new=False):
     try:

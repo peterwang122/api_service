@@ -9,7 +9,6 @@ import yaml
 from api.ad_api.sd.gen_sd import GenSD
 from api.ad_api.sd.tools_sd import ToolsSD
 from api.ad_api.sp.tools_sp import ToolsSP
-from configuration.path import get_config_path
 from logs.logger import logger
 
 

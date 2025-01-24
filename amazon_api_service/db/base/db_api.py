@@ -6,7 +6,6 @@ import redis
 from tenacity import retry, stop_after_attempt, wait_fixed
 import pymysql
 from logs.logger import logger
-from configuration.path import get_config_path
 from config import REDIS_CONFIG
 from typing import Dict, Any
 

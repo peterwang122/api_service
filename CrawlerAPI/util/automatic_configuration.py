@@ -4,7 +4,6 @@ import shutil
 
 import yaml
 from util.InserOnlineData import ProcessShowData
-from configuration.path import get_config_path
 import redis
 from config import REDIS_CONFIG
 

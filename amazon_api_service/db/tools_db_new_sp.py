@@ -3,7 +3,6 @@ import os
 import asyncio
 import pymysql
 import pandas as pd
-from configuration.path import get_config_path
 
 from db.base.db_api import BaseDb
 

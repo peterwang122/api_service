@@ -18,7 +18,6 @@ import redis
 from config import REDIS_CONFIG
 from db.tools_db_new_sp import DbNewSpTools
 from db.tools_db_sp import DbSpTools
-from configuration.path import get_config_path
 
 redis_client = redis.Redis(db=12,**REDIS_CONFIG)
 
