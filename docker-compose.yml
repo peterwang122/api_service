@@ -1,0 +1,44 @@
+
+
+services:
+  # 定义 Redis 服务
+  redis:
+    image: redis:latest  # 使用官方 Redis 镜像
+    container_name: redis_container
+    ports:
+      - "6380:6379"  # 将 Redis 的 6379 端口映射到宿主机的 6379 端口
+    volumes:
+      - redis_data:/data  # 持久化 Redis 数据
+
+  # 定义你的应用程序服务
+  app-flask:
+    build: ./amazon_api_service1  # 使用当前目录下的 Dockerfile 构建镜像
+    container_name: api-flask
+    depends_on:
+      - redis  # 确保 Redis 服务先启动
+    environment:
+      - REDIS_HOST=redis  # Redis 服务的主机名
+      - REDIS_PORT=6379   # Redis 服务的端口
+    ports:
+      - "8008:8008"  # 将 Flask 的 8008 端口映射到宿主机的 8008 端口
+    volumes:
+      - ./amazon_api_service1:/amazon_api_service1  # 将当前目录挂载到容器的 /app 目录（可选，用于开发环境）
+    command: python main.py  # 运行程序的命令
+
+
+  crawlerapi:
+    build: ./flaskProject    # 指向 service2 的 Dockerfile 所在目录
+    container_name: crawlerapi
+    ports:
+      - "8000:8000"      # 将宿主机的 5001 端口映射到容器的 5001 端口
+    environment:
+      - REDIS_HOST=redis # 设置 Redis 主机名
+      - REDIS_PORT=6379  # 设置 Redis 端口
+    depends_on:
+      - redis            # 确保 Redis 先启动
+    volumes:
+      - ./flaskProject:/CrawlerAPI  # 将当前目录挂载到容器的 /app 目录（可选，用于开发环境）
+    command: python main.py  # 运行程序的命令
+
+volumes:
+  redis_data:
