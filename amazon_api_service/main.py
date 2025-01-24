@@ -369,4 +369,4 @@ def handle_delete():
 
 if __name__ == '__main__':
     automatic_configuration()
-    app.run(debug=False, host='0.0.0.0', port=8009, threaded=True)
+    app.run(debug=False, host='0.0.0.0', port=8008, threaded=True)
