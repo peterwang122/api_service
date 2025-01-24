@@ -11,8 +11,6 @@ import yaml
 from api.ad_api.sp.gen_sp import GenSP
 from api.ad_api.sp.tools_sp import ToolsSP
 from logs.logger import logger
-from util.expanded_asin import expanded_asin
-from util.searchterm_asin2 import searchterm_asin
 
 
 class auto_api_sp:
