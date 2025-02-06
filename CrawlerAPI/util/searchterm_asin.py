@@ -91,7 +91,11 @@ def generate_urls(market):
     "AU": "https://www.amazon.com.au/",
     "CA": "https://www.amazon.ca/",
     "MX": "https://www.amazon.com.mx/",
-    "AE": "https://www.amazon.ae/"
+    "AE": "https://www.amazon.ae/",
+    "BE": "https://www.amazon.com.be/",
+    "NL": "https://www.amazon.nl/",
+    "PL": "https://www.amazon.pl/",
+    "SE": "https://www.amazon.se/"
 }
     base_url = url_templates.get(market.upper())
     if not base_url:
