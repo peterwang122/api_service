@@ -15,19 +15,22 @@ import json
 import csv
 import time
 import redis
+from playwright.async_api import async_playwright
+
 from config import REDIS_CONFIG
 from db.tools_db_new_sp import DbNewSpTools
 from db.tools_db_sp import DbSpTools
+from configuration.path import get_config_path
 
 redis_client = redis.Redis(db=12,**REDIS_CONFIG)
 
 def get_proxies(region):
-    proxies = "http://192.168.2.165:7890"
+    proxies = "http://192.168.5.188:7890"
     if region in ("JP","US"):
         print("有代理")
         return proxies
     else:
-        return None
+        return proxies
 
 def make_url(market,asin):
     urls = generate_urls(market)
@@ -95,7 +98,8 @@ def generate_urls(market):
     "BE": "https://www.amazon.com.be/",
     "NL": "https://www.amazon.nl/",
     "PL": "https://www.amazon.pl/",
-    "SE": "https://www.amazon.se/"
+    "SE": "https://www.amazon.se/",
+    "IN": "https://www.amazon.in/"
 }
     base_url = url_templates.get(market.upper())
     if not base_url:
@@ -106,25 +110,33 @@ def generate_urls(market):
 
 async def pachong(db, brand, market, search_term):
     waiting_count = 0
-    MAX_WAITING_COUNT = 10
+    MAX_WAITING_COUNT = 100
     urls = generate_urls(market)
     all_asin_data = []
 
-    # 处理搜索词，若有空格则替换为 "+"
     search_term = search_term.replace(" ", "+")
-    cache_key = f"pachong:{market}:{search_term}"  # Redis 缓存键
+    cache_key = f"pachong:{market}:{search_term}"
 
-    # 尝试从 Redis 缓存中获取数据
     cached_data = redis_client.get(cache_key)
     if cached_data:
         print(f"已缓存 {market} - {search_term} 的 ASIN，跳过爬取")
         return json.loads(cached_data)
 
+    # 代理配置管理
+    proxy_configs = [
+        {'proxy': None, 'auth': None},
+        {'proxy': 'http://192.168.5.188:7890', 'auth': None},
+        {'proxy': 'tunpool-pczn8.qg.net:17841', 'auth': ('7D914026', '6DB40C477A3A')}
+    ]
+    proxy_index = 0
+    consecutive_failures = 0
+
     async def extract_asin_data(url):
-        while True:
-            try:
-                print(url)
-                # 设置代理和其他启动选项
+        nonlocal proxy_index, consecutive_failures
+        current_proxy = proxy_configs[proxy_index]
+
+        try:
+            if market == 'JP':
                 browser = await pyppeteer.launch({
                     'headless': True,  # 启动无头浏览器
                     'args': [
@@ -136,92 +148,239 @@ async def pachong(db, brand, market, search_term):
 
                 # 创建新页面
                 page = await browser.newPage()
-                # 访问目标网址
-                await page.goto(url)
-                # 获取页面内容
-                asins = await page.evaluate('''() => {
-                            const asins = [];
-                            const elements = document.querySelectorAll('[data-asin]');
-                            elements.forEach(el => {
-                                if (el.hasAttribute('data-asin')) {
-                                    asins.push(el.getAttribute('data-asin'));
-                                }
-                            });
-                            return asins;
-                        }''')
-                asin_list = []
-                # 关闭浏览器
-                await browser.close()
-                print(asins)
-                for element in asins:
-                    if element and element.startswith('B0'):
-                        asin_list.append(element)
-                print(asin_list)
-                if len(asins) > 2:
-                    return asin_list
-                else:
-                    await asyncio.sleep(random.uniform(3, 5))  # 如果请求失败，等待5秒后重试
-                    return None
-            except requests.exceptions.RequestException as e:
-                # 捕获所有请求相关的异常
-                print(f"请求失败，错误信息：{e}")
-                await asyncio.sleep(random.uniform(3, 5))  # 等待5秒后重试
-                return None
-            finally:
-                await browser.close()
+            elif current_proxy['proxy'] == 'http://192.168.5.188:7890':
+                print(f"使用异步Playwright访问：{current_proxy}")
+                browser = None
+                try:
+                    async with async_playwright() as p:
+                        # 启动浏览器并设置代理
+                        browser = await p.firefox.launch(
+                            headless=True,
+                            proxy={
+                                "server": current_proxy['proxy'],
+                                "username": current_proxy['auth'][0] if current_proxy['auth'] else None,
+                                "password": current_proxy['auth'][1] if current_proxy['auth'] else None
+                            } if current_proxy['proxy'] else None
+                        )
 
+                        # 创建新页面
+                        context = await browser.new_context()
+                        page = await context.new_page()
+
+                        # 导航到页面
+                        response = await page.goto(url, timeout=60000)
+                        if not response or response.status != 200:
+                            raise Exception(f"请求失败，状态码：{response.status if response else '无响应'}")
+
+                        # 异步执行JavaScript获取ASIN
+                        asins = await page.evaluate('''() => {
+                                        return Array.from(document.querySelectorAll('[data-asin]'))
+                                            .map(el => el.getAttribute('data-asin'))
+                                            .filter(asin => asin && asin.startsWith('B0'));
+                                    }''')
+
+                        # 关闭资源
+                        await context.close()
+                        await browser.close()
+
+                        if len(asins) > 2:
+                            consecutive_failures = 0
+                            return asins
+                        else:
+                            consecutive_failures += 1
+                            print(f"数据不足，连续失败次数：{consecutive_failures}")
+                            if consecutive_failures >= 3:
+                                proxy_index = (proxy_index + 1) % len(proxy_configs)
+                                consecutive_failures = 0
+                                print(f"切换至下一个代理配置：{proxy_configs[proxy_index]}")
+                            return None
+
+                except Exception as e:
+                    print(f"异步爬取失败：{str(e)[:200]}")
+                    if browser:
+                        await browser.close()
+                    consecutive_failures += 1
+                    if consecutive_failures >= 3:
+                        proxy_index = (proxy_index + 1) % len(proxy_configs)
+                        consecutive_failures = 0
+                        print(f"连续失败3次，切换至下一个代理配置：{proxy_configs[proxy_index]}")
+                    return None
+            elif current_proxy['proxy'] == 'tunpool-pczn8.qg.net:17841':
+                print(f"使用异步Playwright访问：{current_proxy}")
+                browser = None
+                try:
+                    async with async_playwright() as p:
+                        # 启动浏览器并设置代理
+                        browser = await p.webkit.launch(
+                            headless=True,
+                            proxy={
+                                "server": current_proxy['proxy'],
+                                "username": current_proxy['auth'][0] if current_proxy['auth'] else None,
+                                "password": current_proxy['auth'][1] if current_proxy['auth'] else None
+                            } if current_proxy['proxy'] else None
+                        )
+
+                        # 创建新页面
+                        context = await browser.new_context()
+                        page = await context.new_page()
+
+                        # 导航到页面
+                        response = await page.goto(url, timeout=60000)
+                        if not response or response.status != 200:
+                            raise Exception(f"请求失败，状态码：{response.status if response else '无响应'}")
+
+                        # 异步执行JavaScript获取ASIN
+                        asins = await page.evaluate('''() => {
+                                        return Array.from(document.querySelectorAll('[data-asin]'))
+                                            .map(el => el.getAttribute('data-asin'))
+                                            .filter(asin => asin && asin.startsWith('B0'));
+                                    }''')
+
+                        # 关闭资源
+                        await context.close()
+                        await browser.close()
+
+                        if len(asins) > 2:
+                            consecutive_failures = 0
+                            return asins
+                        else:
+                            consecutive_failures += 1
+                            print(f"数据不足，连续失败次数：{consecutive_failures}")
+                            if consecutive_failures >= 3:
+                                proxy_index = (proxy_index + 1) % len(proxy_configs)
+                                consecutive_failures = 0
+                                print(f"切换至下一个代理配置：{proxy_configs[proxy_index]}")
+                            return None
+
+                except Exception as e:
+                    print(f"异步爬取失败：{str(e)[:200]}")
+                    if browser:
+                        await browser.close()
+                    consecutive_failures += 1
+                    if consecutive_failures >= 3:
+                        proxy_index = (proxy_index + 1) % len(proxy_configs)
+                        consecutive_failures = 0
+                        print(f"连续失败3次，切换至下一个代理配置：{proxy_configs[proxy_index]}")
+                    return None
+            else:
+                print(f"当前使用代理配置：{proxy_configs[proxy_index]}")
+                args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-infobars',
+                    '--disable-dev-shm-usage',
+                    '--no-zygote'
+                ]
+
+                current_proxy = proxy_configs[proxy_index]
+                if current_proxy['proxy']:
+                    args.append(f'--proxy-server={current_proxy["proxy"]}')
+
+                # 启动浏览器
+                browser = await pyppeteer.launch({
+                    'headless': True,
+                    'args': args,
+                    'autoClose': True,
+                    'handleSIGINT': False,
+                    'handleSIGTERM': False,
+                    'handleSIGHUP': False
+                })
+
+                page = await browser.newPage()
+
+                # 代理认证
+                if current_proxy['auth']:
+                    await page.authenticate({
+                        'username': current_proxy['auth'][0],
+                        'password': current_proxy['auth'][1]
+                    })
+
+            # 页面请求
+            await page.goto(url)
+
+            # 获取ASIN
+            asins = await page.evaluate('''() => {
+                return Array.from(document.querySelectorAll('[data-asin]'))
+                    .map(el => el.getAttribute('data-asin'))
+                    .filter(asin => asin && asin.startsWith('B0'));
+            }''')
+
+            print(f"获取到ASIN列表：{asins}")
+
+            if len(asins) > 2:
+                consecutive_failures = 0
+                return asins
+            else:
+                consecutive_failures += 1
+                print(f"数据不足，连续失败次数：{consecutive_failures}")
+                if consecutive_failures >= 3:
+                    proxy_index = (proxy_index + 1) % len(proxy_configs)
+                    consecutive_failures = 0
+                    print(f"切换至下一个代理配置：{proxy_configs[proxy_index]}")
+                return None
+
+        except Exception as e:
+            print(f"爬取失败，错误：{str(e)[:200]}")  # 截断长错误信息
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                proxy_index = (proxy_index + 1) % len(proxy_configs)
+                consecutive_failures = 0
+                print(f"连续失败3次，切换至下一个代理配置：{proxy_configs[proxy_index]}")
+            return None
+        finally:
+            # 资源清理
+            try:
+                if page and not page.isClosed():
+                    await page.close()
+                if browser:
+                    await browser.close()
+            except Exception as e:
+                print(f"资源清理错误：{str(e)[:100]}")
+            finally:
+                # 强制释放资源
+                if 'page' in locals():
+                    del page
+                if 'browser' in locals():
+                    del browser
+
+    # 页面循环逻辑（保持原有逻辑）
     for page_num in range(1, 8):
-        await asyncio.sleep(random.uniform(3, 5))
         consecutive_empty_count = 0
         url = f"{urls}s?k={search_term}&page={page_num}&ref=sr_pg_{page_num}"
         print(f"正在处理 {market} - {search_term} 的第 {page_num} 页...")
         asin_data = None
 
         while asin_data is None:
-            asin_data = []  # 清空之前的数据
             try:
                 asin_data = await extract_asin_data(url)
             except Exception as e:
-                print(f"爬取失败，错误：{e}")
+                asin_data = None
+                print(f"页面处理失败：{str(e)[:200]}")
 
             if asin_data is None:
                 consecutive_empty_count += 1
                 print(f"连续返回空数据 {consecutive_empty_count} 次")
-
-                if consecutive_empty_count >= 3:
-                    print("连续3次返回空数据，等待60分钟后继续...")
+                if consecutive_empty_count >= 100:
+                    print(f"连续{consecutive_empty_count}次返回空数据，等待60分钟后继续...")
                     waiting_count += 1
-
                     if waiting_count >= MAX_WAITING_COUNT:
                         print(f"已达到最大等待次数 {MAX_WAITING_COUNT}，停止所有任务...")
-                        raise print("Reached max wait count, cancelling all tasks.")
-                    current_time = datetime.now()
-                    # 打印当前时间（默认格式：年-月-日 时:分:秒.毫秒）
-                    print(current_time)
-                    await asyncio.sleep(60 * 60)  # 等待10分钟
-                    consecutive_empty_count = 0  # 重置计数器
-                else:
-                    print(f"当前数据量 0，重新获取数据...")
+                        raise Exception("Reached max wait count")
+                    await asyncio.sleep(60)
+                    consecutive_empty_count = 0
             else:
                 break
 
-        # 记录第一页的数据量，后续页面将根据此值来判断
+        all_asin_data.extend(asin_data)
         if page_num == 1:
             first_page_data_count = min(len(asin_data), 48)
+        if first_page_data_count and len(asin_data) < first_page_data_count:
+            print(f"第 {page_num} 页数据量不足，停止后续抓取")
+            break
 
-        # 将当前页的数据添加到总数据列表
-        all_asin_data.extend(asin_data)
-
-        # 后续页面根据第一页的抓取量来判断是否继续抓取
-        if first_page_data_count is not None and len(asin_data) < first_page_data_count:
-            print(f"第 {page_num} 页抓取的数据小于第一页的数据量，停止抓取后续页...")
-            break  # 停止抓取后续页面
-
-    # 将数据存入 Redis 缓存，设置过期时间为 12 小时
     redis_client.set(cache_key, json.dumps(all_asin_data), ex=60 * 60 * 12)
-    print(f"all_asin_data:{all_asin_data}")
+    print(f"最终获取ASIN数量：{len(all_asin_data)}")
     return all_asin_data
-
 
 async def searchterm_asin(db,brand,market,day,order,num):
     api = DbSpTools(db, brand, market)
@@ -319,5 +478,5 @@ async def searchterm_asin(db,brand,market,day,order,num):
 
 
 if __name__ == "__main__":
-    asyncio.run(searchterm_asin('amazon_68_LILLEPRINS','LILLEPRINS','US',60,1,1000))
+    asyncio.run(searchterm_asin('amazon_191_crystalworld','Fellowes','US',60,1,1000))
 

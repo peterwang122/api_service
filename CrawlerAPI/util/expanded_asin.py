@@ -21,7 +21,7 @@ from db.tools_db_sp import DbSpTools
 redis_client = redis.Redis(db=12,**REDIS_CONFIG)
 
 def get_proxies(region):
-    proxies = "http://192.168.2.165:7890"
+    proxies = "http://192.168.5.188:7890"
     if region in ("JP","US"):
         print("有代理")
         return proxies
@@ -91,8 +91,11 @@ def generate_urls(market, classification_rank_classification_id):
     "SE": [
         "https://www.amazon.se/gp/bestsellers/fashion/{}/ref=zg_bs_pg_1_fashion?ie=UTF8&pg=1",
         "https://www.amazon.se/gp/bestsellers/fashion/{}/ref=zg_bs_pg_2_fashion?ie=UTF8&pg=2"
+    ],
+    "IN": [
+        "https://www.amazon.in/gp/bestsellers/home-improvement/{}/ref=zg_bs_pg_1_home-improvement?ie=UTF8&pg=1",
+        "https://www.amazon.in/gp/bestsellers/home-improvement/{}/ref=zg_bs_pg_2_home-improvement?ie=UTF8&pg=2"
     ]
-
     }
     if market not in url_templates:
         raise ValueError(f"未知的市场：{market}")
