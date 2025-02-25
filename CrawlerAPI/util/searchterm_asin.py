@@ -36,7 +36,7 @@ def make_url(market,asin):
     urls = generate_urls(market)
     return f'{urls}dp/{asin}'
 
-async def fetch_last_category(market,asin, max_retries=100, delay=2):
+async def fetch_last_category(market,asin, max_retries=200, delay=2):
     url = make_url(market,asin)
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -114,7 +114,7 @@ async def pachong(db, brand, market, search_term):
     urls = generate_urls(market)
     all_asin_data = []
 
-    search_term = search_term.replace(" ", "+")
+    search_term = search_term.replace(" ", "+").replace("&", "%26")
     cache_key = f"pachong:{market}:{search_term}"
 
     cached_data = redis_client.get(cache_key)
